@@ -32,6 +32,7 @@ app.layout = html.Div(style={'backgroundColor': '#1e1e1e', 'padding': '20px'}, c
 
     # Store for user layout settings
     dcc.Store(id='user-layout', data=None),
+    dcc.Store(id='user-config', data=None),
 
     dcc.Interval(
         id='interval-component',
@@ -40,7 +41,7 @@ app.layout = html.Div(style={'backgroundColor': '#1e1e1e', 'padding': '20px'}, c
     ),
     dcc.Graph(
         id='candlestick-chart',
-        style={'height': '800px','backgroundColor': '#1e1e1e'},
+        style={'height': '800px', 'backgroundColor': '#1e1e1e'},
         config={
             'displayModeBar': True,
             'scrollZoom': True,
@@ -84,9 +85,9 @@ app.layout = html.Div(style={'backgroundColor': '#1e1e1e', 'padding': '20px'}, c
 @app.callback(
     Output('candlestick-chart', 'figure'),
     [Input('interval-component', 'n_intervals')],
-    [State('candlestick-chart', 'relayoutData'), State('user-layout', 'data')]
+    [State('candlestick-chart', 'relayoutData'), State('user-layout', 'data'), State('user-config', 'data')]
 )
-def update_chart(n, relayout_data, user_layout):
+def update_chart(n, relayout_data, user_layout, user_config):
     # Reload data
     data = load_data()
 
@@ -114,6 +115,12 @@ def update_chart(n, relayout_data, user_layout):
             pd.to_datetime(relayout_data['xaxis.range[1]'])
         ]
     elif user_layout:
+        x_range = user_layout.get('xaxis.range', x_range)
+
+    # Restore user chart settings like visibility
+    if user_layout and 'restyleData' in user_layout and user_layout['restyleData']:
+        for trace_index, update_data in zip(user_layout['restyleData'][0], user_layout['restyleData'][1]):
+            fig.data[trace_index].update(visible=update_data)
         x_range = user_layout.get('xaxis.range', x_range)
 
     # Build the chart
@@ -176,23 +183,60 @@ def update_chart(n, relayout_data, user_layout):
         name='Current Price'
     ))
 
-    # Update figure layout dynamically
-    # fig.update_layout(user_layout.get())
+    # Update layout
+    if user_config:
+        fig.update_layout(user_config)
+
+    fig.update_layout(
+        title='Crypto Price Chart',
+        xaxis=dict(
+            range=x_range,
+            title_font=dict(size=14),
+            showgrid=True,
+            gridcolor='gray'
+        ),
+        yaxis=dict(
+            range=[y_min - y_padding, y_max + y_padding],
+            title_font=dict(size=14),
+            showgrid=True,
+            gridcolor='gray'
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        template='plotly_dark',
+        plot_bgcolor='#1e1e1e',
+        paper_bgcolor='#1e1e1e'
+    )
 
     return fig
 
-# Store user layout settings
+# Store user layout and config settings
 @app.callback(
-    Output('user-layout', 'data'),
-    [Input('candlestick-chart', 'relayoutData')],
+    [Output('user-layout', 'data'), Output('user-config', 'data')],
+    [Input('candlestick-chart', 'relayoutData')]
 )
-def save_user_layout(relayout_data):
+def save_user_settings(relayout_data):
+    layout_data = None
+    config_data = None
+
     if relayout_data:
-        return {'xaxis.range': [
-            relayout_data.get('xaxis.range[0]'),
-            relayout_data.get('xaxis.range[1]')
-        ]}
-    return dash.no_update
+        layout_data = {
+            'xaxis.range': [
+                relayout_data.get('xaxis.range[0]'),
+                relayout_data.get('xaxis.range[1]')
+            ]
+        }
+        config_data = {
+            'xaxis': relayout_data.get('xaxis', {}),
+            'yaxis': relayout_data.get('yaxis', {})
+        }
+
+    return layout_data, config_data
 
 # Run the Dash app
 if __name__ == '__main__':

@@ -7,9 +7,9 @@ import argparse
 import pytz
 
 
-# Load API key from .env
+# load API key
 load_dotenv()
-API_KEY = os.getenv("FINNHUB_API_KEY")
+API_KEY = api_key = open('FINHUB_API_KEY.txt')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
